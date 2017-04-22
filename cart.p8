@@ -18,15 +18,46 @@ local entities
 local new_entities
 local entity_classes={
 	player={
-		width=24,
-		height=32,
+		width=16,
+		height=28,
+		is_airborne=true,
 		update=function(self)
+			self.is_airborne=true
+			-- adjust velocity
 			self.vx=(btn(1) and 1 or 0)-(btn(0) and 1 or 0)
+			self.vy=mid(-2,self.vy+0.1,2)
+			-- apply velocity
 			self.x+=self.vx
 			self.y+=self.vy
+			-- apply collisions
+			local w,h,half_w,half_h=self.width,self.height,self.width/2,self.height/2
+			foreach(entities,function(entity)
+				local x,y=self.x,self.y
+				if entity.class_name=="brick" then
+					local x2,y2,w2,h2=entity.x,entity.y,entity.width,entity.height
+					-- check if bottom half overlaps
+					if rects_overlap(x+2,y+half_h,w-4,half_h,x2,y2,w2,h2) then
+						self.y,self.vy,self.is_airborne=y2-h,min(0,self.vy),false
+					-- check if top half overlaps
+					elseif rects_overlap(x+2,y,w-4,half_h,x2,y2,w2,h2) then
+						self.y,self.vy=y2+h2,max(0,self.vy)
+					-- check if left half overlaps
+					elseif rects_overlap(x,y+2,half_w,h-4,x2,y2,w2,h2) then
+						self.x,self.vx=x2+w2,max(0,self.vx)
+					-- check if right half overlaps
+					elseif rects_overlap(x+half_w,y+2,half_w,h-4,x2,y2,w2,h2) then
+						self.x,self.vx=x2-w,min(0,self.vx)
+					end
+				end
+			end)
+			-- jump
+			if not self.is_airborne and btnp(4) then
+				self.is_airborne,self.vy=true,-3
+			end
 		end,
 		draw=function(self)
-			rect(self.x-ceil(self.width/2-1),self.y,self.x+flr(self.width/2),self.y-self.height+1,7)
+			rect(self.x,self.y,self.x+self.width-1,self.y+self.height-1,7)
+			-- rect(self.x-ceil(self.width/2)-1,self.y,self.x+flr(self.width/2),self.y-self.height+1,7)
 			pset(self.x,self.y,8)
 		end
 	},
@@ -76,12 +107,15 @@ end
 
 -- game functions
 function init_game()
-	entities,new_entities={},{}
-	player_entity=create_entity("player",{x=30,y=30})
-	create_entity("brick",{x=30,y=50})
-	create_entity("brick",{x=40,y=50})
-	create_entity("brick",{x=50,y=50})
-	camera_x,camera_y=player_entity.x,player_entity.y-20
+	entities,new_entities,camera_x,camera_y={},{} -- ,nil,nil
+	player_entity=create_entity("player",{x=30,y=40})
+	create_entity("brick",{x=20,y=80})
+	create_entity("brick",{x=30,y=80})
+	create_entity("brick",{x=40,y=80})
+	create_entity("brick",{x=50,y=80})
+	create_entity("brick",{x=50,y=60})
+	create_entity("brick",{x=0,y=60})
+	create_entity("brick",{x=30,y=10})
 end
 
 function update_game()
@@ -95,7 +129,7 @@ function update_game()
 			entity:die()
 		end
 	end)
-	shrink_towards(player_entity.x,player_entity.y,0.99)
+	shrink_towards(player_entity.x+player_entity.width/2,player_entity.y+player_entity.height,0.99)
 	-- add new entities to the game
 	foreach(new_entities,function(entity)
 		entity:add_to_game()
@@ -114,8 +148,8 @@ function update_game()
 		end
 	end
 	-- the camera should track the player loosely
-	camera_x=mid(player_entity.x-10,camera_x,player_entity.x+10)
-	camera_y=player_entity.y-20
+	local x=player_entity.x+player_entity.width/2
+	camera_x,camera_y=mid(x-0,camera_x,x+0),player_entity.y
 end
 
 function draw_game()
@@ -220,6 +254,16 @@ function filter_entity_list(list)
 			num_deleted+=1
 		end
 	end
+end
+
+function entities_overlap(entity1,entity2)
+	return rects_overlap(
+		entity1.x,entity1.y,entity1.width,entity1.height,
+		entity2.x,entity2.y,entity2.width,entity2.height)
+end
+
+function rects_overlap(x1,y1,width1,height1,x2,y2,width2,height2)
+	return x1+width1>x2 and x2+width2>x1 and y1+height1>y2 and y2+height2>y1
 end
 
 
